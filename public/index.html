@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clear45 - MSME payment deadline tracker</title>
+<meta name="description" content="Claude reads the supplier invoice. Clear45 works out the legal payment deadline and keeps it live.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f2a3d'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='15' fill='%23ffd166' text-anchor='middle'%3E45%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- Sign-in page -->
+<main id="login" hidden>
+  <section class="hero">
+    <div class="brand"><span class="logo">45</span> Clear45</div>
+    <h1>Pay every small supplier before the legal deadline.</h1>
+    <p class="lead">Indian law gives buyers 15 days to pay a micro or small supplier, or up to 45 days with a written agreement. Pay late and you lose the tax deduction for that year. Claude reads the invoice. Clear45 works out the deadline with fixed rules and keeps it live for your finance team.</p>
+    <ol class="how">
+      <li><b>Ask Claude.</b> Drop an invoice into Claude and say &ldquo;log this bill in Clear45&rdquo;.</li>
+      <li><b>See it here.</b> The bill appears with its legal due date and a red, amber or green countdown.</li>
+      <li><b>Edit and approve.</b> Fix any field, approve, mark it paid and download the compliance register.</li>
+    </ol>
+    <div class="kit">
+      <h2>Sample invoices to try in Claude</h2>
+      <p>Download one, drop it into Claude after connecting, and type &ldquo;Log this bill in Clear45&rdquo;.</p>
+      <div class="samples" data-samples></div>
+    </div>
+    <p class="fine">No AI runs inside this app. <a href="/trust">See how to check that</a>.</p>
+  </section>
+  <section class="signin">
+    <form id="loginForm" class="card">
+      <h2>Sign in</h2>
+      <label>Username <input name="username" autocomplete="username" required></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+      <label>Your name <span class="hint">shown in the activity log next to your edits</span> <input name="name" placeholder="e.g. Rahul" maxlength="40"></label>
+      <p class="error" id="loginError" hidden></p>
+      <button class="btn primary" type="submit">Sign in</button>
+      <button class="btn ghost" type="button" id="demoBtn" hidden>Fill in the demo login</button>
+    </form>
+  </section>
+</main>
+
+<!-- Dashboard -->
+<div id="app" hidden>
+  <header class="top">
+    <div class="brand"><span class="logo">45</span> Clear45</div>
+    <nav>
+      <button class="btn accent" id="connectBtn">Connect Claude</button>
+      <button class="btn" id="addBtn">+ Add bill</button>
+      <button class="btn" id="exportBtn">Export</button>
+      <button class="btn" id="resetBtn" title="Put the sample bills back as they were">Reset demo data</button>
+      <span class="who" id="who"></span>
+      <button class="btn ghost" id="logoutBtn">Sign out</button>
+    </nav>
+  </header>
+  <div class="banner" id="memoryBanner" hidden>Test mode: no database is connected, so data is kept only until the server restarts.</div>
+  <section class="tiles" id="tiles"></section>
+  <section class="toolbar">
+    <div class="chips" id="chips"></div>
+    <input id="search" type="search" placeholder="Search supplier or invoice number" aria-label="Search bills">
+  </section>
+  <section class="tablewrap">
+    <table id="bills">
+      <thead><tr><th>Bill</th><th>Supplier</th><th>Invoice</th><th>Accepted</th><th>Legal due date</th><th>Countdown</th><th class="num">Amount</th><th>Status</th><th>Created by</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="empty" hidden></div>
+  </section>
+  <footer class="foot">Decision-support tool. Confirm each supplier&rsquo;s MSME status and acceptance dates with your chartered accountant. <a href="/trust">No AI inside: how to check</a> &middot; <span id="liveDot">Live: updates every few seconds</span></footer>
+</div>
+
+<!-- Bill panel -->
+<aside id="drawer" class="drawer" hidden aria-label="Bill details">
+  <div class="drawer-head">
+    <div><h2 id="dTitle"></h2><div id="dSub" class="sub"></div></div>
+    <button class="btn ghost" id="dClose" aria-label="Close">Close</button>
+  </div>
+  <div class="drawer-body">
+    <div class="rule" id="dRule"></div>
+    <div id="dFlags"></div>
+    <form id="billForm" autocomplete="off">
+      <fieldset><legend>Supplier</legend>
+        <label class="wide">Supplier name <input name="supplier_name" required></label>
+        <label>MSME category
+          <select name="mse_category"><option value="micro">Micro</option><option value="small">Small</option><option value="medium">Medium</option><option value="not_msme">Not an MSME</option><option value="unknown">Not confirmed</option></select></label>
+        <label>Supplier type
+          <select name="supplier_type"><option value="manufacturer">Manufacturer</option><option value="service">Service provider</option><option value="trader">Trader (buys and resells)</option><option value="unknown">Not confirmed</option></select></label>
+        <label>Udyam number <input name="udyam_number" placeholder="UDYAM-XX-00-0000000"></label>
+        <label>PAN <input name="supplier_pan" maxlength="10"></label>
+        <label>GSTIN <input name="supplier_gstin" maxlength="15"></label>
+      </fieldset>
+      <fieldset><legend>Invoice</legend>
+        <label>Invoice number <input name="invoice_number" required></label>
+        <label>Amount (&#8377;, including GST) <input name="amount" type="number" step="0.01" min="0" required></label>
+        <label>Invoice date <input name="invoice_date" type="date" required></label>
+        <label>Acceptance date <span class="hint">the legal clock starts here</span> <input name="acceptance_date" type="date"></label>
+      </fieldset>
+      <fieldset><legend>Payment terms</legend>
+        <label class="check"><input name="written_agreement" type="checkbox"> There is a written agreement on payment terms</label>
+        <label id="agreedWrap">Agreed credit days <input name="agreed_days" type="number" min="1" max="365" step="1"></label>
+        <label class="wide">Reason for delay <span class="hint">goes into the MSME-1 sheet</span> <input name="delay_reason"></label>
+        <label class="wide">Notes <input name="notes"></label>
+      </fieldset>
+      <p class="error" id="dError" hidden></p>
+      <div class="actions" id="dActions"></div>
+    </form>
+    <section id="dActivityWrap"><h3>Activity</h3><ol class="activity" id="dActivity"></ol></section>
+  </div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
+
+<!-- Pop-up used for Connect and Export -->
+<div id="modal" class="modal" hidden role="dialog" aria-modal="true"><div class="modal-card"><button class="btn ghost close" id="mClose">Close</button><div id="mBody"></div></div></div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>
